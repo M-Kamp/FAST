@@ -219,12 +219,8 @@ int main()
 			{
 				InterestPoint p = InterestPoint(x, y);
 				InterestPoints.push_back(p);
-				// add color to the original image?
-				uchar& Color = greymat.at<uchar>(y, x);
-
-				Color = 255;
-
-				img.at<Vec3b>(y, x) = Vec3b(Color, Color, Color);
+				// Set the color of this pixel to red to indicate that it is an interest pixel
+				img.at<Vec3b>(y, x) = Vec3b(0, 0, 255);
 			}
 
 		}
