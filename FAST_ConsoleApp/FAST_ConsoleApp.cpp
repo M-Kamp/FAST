@@ -44,6 +44,8 @@ public:
 	}
 };
 
+#define optimised
+
 int main()
 {
 	Mat img = imread("city.jpg");
@@ -51,9 +53,12 @@ int main()
 	Mat greymat;
 	cv::cvtColor(img, greymat, cv::COLOR_BGR2GRAY);
 
-	int N = 14;
+	int N = 12;
 	int padding = 4;
 	double Tthreshold = 0.2;
+
+	auto start = std::chrono::high_resolution_clock::now();
+
 	vector<InterestPoint> interestPoints;
 	FASTPoint BresenhamCircle[16];
 
@@ -84,8 +89,39 @@ int main()
 			int interestAbove = 0;
 			int interestBelow = 0;
 
+#ifdef optimised
+			int Itest1 = greymat.at<uchar>(y + BresenhamCircle[0].Y, x + BresenhamCircle[0].X);
+			int Itest5 = greymat.at<uchar>(y + BresenhamCircle[4].Y, x + BresenhamCircle[4].X);
+			int Itest9 = greymat.at<uchar>(y + BresenhamCircle[8].Y, x + BresenhamCircle[8].X);
+			int Itest13 = greymat.at<uchar>(y + BresenhamCircle[12].Y, x + BresenhamCircle[12].X);
+			int Itests[4] = {Itest1, Itest5, Itest9, Itest13};
+
+			for (size_t i = 0; i < 4; i++)
+			{
+				if (Ip + T < Itests[i])
+				{
+					interestAbove++;
+				}
+
+				if (Ip - T > Itests[i])
+				{
+					interestBelow++;
+				}
+			}
+
+			if (interestAbove >= 3 || interestBelow >= 3)
+			{
+				continue;
+			}
+#endif
 			for (size_t i = 0; i < 16; i++)
 			{
+#ifdef optimised
+				if (i == 0 || i == 4 || i == 8 || i == 12)
+				{
+					continue;
+				}
+#endif
 				int Itest = greymat.at<uchar>(y + BresenhamCircle[i].Y, x + BresenhamCircle[i].X);
 
 				if (Ip + T < Itest)
@@ -107,12 +143,24 @@ int main()
 				uchar& color = greymat.at<uchar>(y, x);
 
 				color = 255;
-	
 
 				img.at<Vec3b>(y, x) = color;
 			}
+
 		}
 	}
+
+#ifdef optimised
+	cout << "Optimised Version";
+	cout << endl;
+#else
+	cout << "Not Optimised Version";
+	cout << endl;
+#endif
+
+	auto finish = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> elapsed = finish - start;
+	std::cout << "Elapsed time: " << elapsed.count() << " s\n";
 
 	cout << "Done";
 	cout << endl;
