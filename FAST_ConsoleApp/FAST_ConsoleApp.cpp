@@ -3,7 +3,8 @@
 #include<iostream>
 #include <opencv2/imgproc/imgproc.hpp>
 
-using namespace cv;
+#define NonMaximalSupression
+#define optimised
 
 class FASTPoint
 {
@@ -30,10 +31,17 @@ public:
 	int X;
 	int Y;
 
+#ifdef NonMaximalSupression
+	short arcStart;
+	short arcEnd;
+	bool shouldDelete = false;
+#endif
+
 	InterestPoint(int x, int y)
 	{
 		X = x;
 		Y = y;
+	
 	}
 
 	InterestPoint()
@@ -41,24 +49,56 @@ public:
 		X = 0;
 		Y = 0;
 	}
+
+#ifdef NonMaximalSupression
+	int ComputeV(FASTPoint BresenhamCircle[], cv::Mat img, int BreshenhamCircleLength) const
+	{
+		int result = 0;
+
+		if (arcStart > arcEnd)
+		{
+			for (int i = arcStart; i < BreshenhamCircleLength; i++)
+			{
+				result += img.at<uchar>(Y, X) - img.at<uchar>(Y + BresenhamCircle[i].Y, X + BresenhamCircle[i].X);
+			}
+
+			for (int i = 0; i < arcEnd; i++)
+			{
+				result += img.at<uchar>(Y, X) - img.at<uchar>( Y + BresenhamCircle[i].Y, X + BresenhamCircle[i].X);
+			}
+		}
+		else
+		{
+			for (int i = arcStart; i < arcEnd; i++)
+			{
+				result += img.at<uchar>(Y, X) - img.at<uchar>(Y + BresenhamCircle[i].Y, X + BresenhamCircle[i].X);
+			}
+		}
+
+		return result;
+	}
+#endif
 };
 
-#define optimised
+
+
 
 int main()
 {
-	Mat img = imread("city.jpg");
-	namedWindow("image", WINDOW_NORMAL);
-	Mat greymat;
+	cv::Mat img = cv::imread("city.jpg");
+	cv::namedWindow("image", cv::WINDOW_NORMAL);
+	cv::Mat greymat;
 	cv::cvtColor(img, greymat, cv::COLOR_BGR2GRAY);
 
-	int N = 15;
+	int N = 12;
 	int padding = 4;
-	double Tthreshold = 0.2;
+	float Tthreshold = 0.2;
 
 	auto start = std::chrono::high_resolution_clock::now();
 
-	std::vector<InterestPoint> InterestPoints;
+	//std::vector<InterestPoint> InterestPoints;
+	std::map<int, InterestPoint> Ips;
+
 	FASTPoint BresenhamCircle[16];
 
 	BresenhamCircle[0] = FASTPoint(0, -3);
@@ -78,9 +118,12 @@ int main()
 	BresenhamCircle[14] = FASTPoint(-2, -2);
 	BresenhamCircle[15] = FASTPoint(-1, -3);
 
-	for (size_t x = padding; x < greymat.cols - padding; x++)
+	int w = greymat.cols;
+	int h = greymat.rows;
+
+	for (int x = padding; x < w - padding; x++)
 	{
-		for (size_t y = padding; y < greymat.rows - padding; y++)
+		for (int y = padding; y < h - padding; y++)
 		{
 			int Ip = greymat.at<uchar>(y, x);
 			float T = Tthreshold * Ip;
@@ -117,6 +160,12 @@ int main()
 				continue;
 			}
 #endif
+
+#ifdef NonMaximalSupression
+			uchar UindexStartMax = 0;
+			uchar OindexStartMax = 0;
+#endif
+
 			uchar UFStreak = 0;
 			uchar UCStreak = 0;
 			uchar UMaxStreak = 0;
@@ -128,7 +177,7 @@ int main()
 			bool IsRejectedAbove = false;
 			bool IsRejectedUnder = false;
 
-			for (size_t i = 0; i < 16; i++)
+			for (uchar i = 0; i < 16; i++)
 			{
 				int Itest = greymat.at<uchar>(y + BresenhamCircle[i].Y, x + BresenhamCircle[i].X);
 
@@ -139,13 +188,25 @@ int main()
 					{
 						OFStreak++;
 						if (OFStreak > OMaxStreak)
+						{
 							OMaxStreak = OFStreak;
+#ifdef NonMaximalSupression
+							OindexStartMax = i - OMaxStreak;
+#endif
+						}							
+							
 					}
 					else
 					{
 						OCStreak++;
 						if (OCStreak > OMaxStreak)
+						{
 							OMaxStreak = OCStreak;
+#ifdef NonMaximalSupression
+							OindexStartMax = i - OMaxStreak;
+#endif
+						}							
+
 					}
 				}
 				else
@@ -154,12 +215,24 @@ int main()
 					if (IsRejectedAbove)
 					{
 						if (OFStreak > OMaxStreak)
+						{
 							OMaxStreak = OFStreak;
+#ifdef NonMaximalSupression
+							OindexStartMax = i - OMaxStreak;
+#endif
+						}
+							
 					}
 					else
 					{
 						if (OCStreak > OMaxStreak)
+						{
 							OMaxStreak = OCStreak;
+#ifdef NonMaximalSupression
+							OindexStartMax = i - OMaxStreak;
+#endif
+						}
+							
 
 						OCStreak = 0;
 					}
@@ -174,14 +247,26 @@ int main()
 					{
 						UFStreak++;
 						if (UFStreak > UMaxStreak)
+						{
 							UMaxStreak = UFStreak;
+#ifdef NonMaximalSupression
+							UindexStartMax = i - UMaxStreak;
+#endif
+						}
+							
 					
 					}
 					else
 					{
 						UCStreak++;
 						if (UCStreak > UMaxStreak)
+						{
 							UMaxStreak = UCStreak;
+#ifdef NonMaximalSupression
+							UindexStartMax = i - UMaxStreak;
+#endif
+						}
+							
 					}
 				}
 				else
@@ -189,12 +274,24 @@ int main()
 					if (IsRejectedUnder)
 					{
 						if (UFStreak > UMaxStreak)
+						{
 							UMaxStreak = UFStreak;
+#ifdef NonMaximalSupression
+							UindexStartMax = i - UMaxStreak;
+#endif
+						}
+							
 					}
 					else
 					{
 						if (UCStreak > UMaxStreak)
+						{
 							UMaxStreak = UCStreak;
+#ifdef NonMaximalSupression
+							UindexStartMax = i - UMaxStreak;
+#endif
+						}
+							
 
 						UCStreak = 0;
 					}
@@ -203,28 +300,121 @@ int main()
 				}
 			}
 
-			bool IsInterestPixel = false;
-
 			// now see if we have a streak bigger or the same as N
-			if (OMaxStreak >= N || UMaxStreak >= N)
-			{
-				IsInterestPixel = true;
-			}
-			else if (OFStreak + OCStreak >= N || UFStreak + UCStreak >= N)
-			{
-				IsInterestPixel = true;
-			}
-
-			if (IsInterestPixel)
+			if (OFStreak + OCStreak >= N)
 			{
 				InterestPoint p = InterestPoint(x, y);
-				InterestPoints.push_back(p);
-				// Set the color of this pixel to red to indicate that it is an interest pixel
-				img.at<Vec3b>(y, x) = Vec3b(0, 0, 255);
-			}
 
+#ifdef NonMaximalSupression
+				p.arcEnd = OFStreak;
+				p.arcStart = 16 - OCStreak;
+#endif
+				Ips[y*w+x] = p;
+				//InterestPoints.push_back(p);
+				// Set the color of this pixel to red to indicate that it is an interest pixel
+				img.at<cv::Vec3b>(y, x) = cv::Vec3b(0, 0, 255);
+				continue;
+			}
+			else if (UFStreak + UCStreak >= N)
+			{
+				InterestPoint p = InterestPoint(x, y);
+
+#ifdef NonMaximalSupression
+				p.arcEnd = UFStreak;
+				p.arcStart = 16 - UCStreak;
+#endif
+				Ips[y*w + x] = p;
+				//InterestPoints.push_back(p);
+				// Set the color of this pixel to red to indicate that it is an interest pixel
+				img.at<cv::Vec3b>(y, x) = cv::Vec3b(0, 0, 255);
+				continue;
+			}
+			else if (OMaxStreak >= N)
+			{
+				InterestPoint p = InterestPoint(x, y);
+
+#ifdef NonMaximalSupression				
+				p.arcStart = OindexStartMax;
+				p.arcEnd = OindexStartMax + OMaxStreak;
+#endif
+				Ips[y*w + x] = p;
+				//InterestPoints.push_back(p);
+				// Set the color of this pixel to red to indicate that it is an interest pixel
+				img.at<cv::Vec3b>(y, x) = cv::Vec3b(0, 0, 255);
+				continue;
+			}
+			else if (UMaxStreak >= N)
+			{
+				InterestPoint p = InterestPoint(x, y);
+
+#ifdef NonMaximalSupression				
+				p.arcStart = UindexStartMax;
+				p.arcEnd = UindexStartMax + UMaxStreak;
+#endif
+				Ips[y*w + x] = p;
+				//InterestPoints.push_back(p);
+				// Set the color of this pixel to red to indicate that it is an interest pixel
+				img.at<cv::Vec3b>(y, x) = cv::Vec3b(0, 0, 255);
+				continue;
+			}
 		}
 	}
+
+#ifdef NonMaximalSupression	
+	/*
+	for (auto it = Ips.cbegin(); it != Ips.cend(); ++it)
+	{
+		std::cout << it->first << " " << it->second << " ""\n";
+	}
+	*/
+
+
+	for (auto item : Ips)
+	{
+		if (Ips.find(item.first - w) != Ips.end())
+		{
+			int val = item.second.ComputeV(BresenhamCircle, greymat, 16);
+			int val2 = Ips[item.first - w].ComputeV(BresenhamCircle, greymat, 16);
+
+			if (val < val2)
+			{
+				Ips[item.first - w].shouldDelete = true;
+			}
+			else
+			{
+				Ips[item.first].shouldDelete = true;
+			}
+		}
+
+		if (Ips.find(item.first - 1) != Ips.end())
+		{
+			short val = item.second.ComputeV(BresenhamCircle, greymat, 16);
+			short val2 = Ips[item.first - 1].ComputeV(BresenhamCircle, greymat, 16);
+
+			if (val < val2)
+			{
+				Ips[item.first - 1].shouldDelete = true;
+			}
+			else
+			{
+				Ips[item.first].shouldDelete = true;
+			}
+		}
+	}
+
+	for (auto it = Ips.cbegin(); it != Ips.cend(); )
+	{
+		if (it->second.shouldDelete)
+		{
+			Ips.erase(it++);    // or "it = m.erase(it)" since C++11
+		}
+		else
+		{
+			++it;
+		}
+	}
+
+#endif
 
 #ifdef optimised
 	std::cout << "Optimised Version";
@@ -240,12 +430,12 @@ int main()
 
 	std::cout << "Done";
 	std::cout << std::endl;
-	std::cout << "We found " << InterestPoints.size() << " interest points";
+	std::cout << "We found " << Ips.size() << " interest points";
 	std::cout << std::endl;
 
 	imshow("image", img);
 
-	waitKey(0);
+	cv::waitKey(0);
 	return 0;
 }
 
