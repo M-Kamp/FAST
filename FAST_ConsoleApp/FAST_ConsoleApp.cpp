@@ -2,9 +2,11 @@
 #include<opencv2/opencv.hpp>
 #include<iostream>
 #include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/features2d.hpp>
 
 #define NonMaximalSupression
 #define optimised
+#define DrawKeypoints
 
 class FASTPoint
 {
@@ -90,15 +92,12 @@ int main()
 	cv::Mat greymat;
 	cv::cvtColor(img, greymat, cv::COLOR_BGR2GRAY);
 
-	int N = 12;
-	int padding = 4;
-	float Tthreshold = 0.2;
-
 	auto start = std::chrono::high_resolution_clock::now();
 
-	//std::vector<InterestPoint> InterestPoints;
+	int N = 12;
+	int padding = 4;
+	float Tthreshold = 0.2f;
 	std::map<int, InterestPoint> Ips;
-
 	FASTPoint BresenhamCircle[16];
 
 	BresenhamCircle[0] = FASTPoint(0, -3);
@@ -311,8 +310,10 @@ int main()
 #endif
 				Ips[y*w+x] = p;
 				//InterestPoints.push_back(p);
+#ifdef DrawKeypoints
 				// Set the color of this pixel to red to indicate that it is an interest pixel
 				img.at<cv::Vec3b>(y, x) = cv::Vec3b(0, 0, 255);
+#endif
 				continue;
 			}
 			else if (UFStreak + UCStreak >= N)
@@ -325,8 +326,11 @@ int main()
 #endif
 				Ips[y*w + x] = p;
 				//InterestPoints.push_back(p);
+
+#ifdef DrawKeypoints
 				// Set the color of this pixel to red to indicate that it is an interest pixel
 				img.at<cv::Vec3b>(y, x) = cv::Vec3b(0, 0, 255);
+#endif
 				continue;
 			}
 			else if (OMaxStreak >= N)
@@ -339,8 +343,10 @@ int main()
 #endif
 				Ips[y*w + x] = p;
 				//InterestPoints.push_back(p);
+#ifdef DrawKeypoints
 				// Set the color of this pixel to red to indicate that it is an interest pixel
 				img.at<cv::Vec3b>(y, x) = cv::Vec3b(0, 0, 255);
+#endif
 				continue;
 			}
 			else if (UMaxStreak >= N)
@@ -353,8 +359,10 @@ int main()
 #endif
 				Ips[y*w + x] = p;
 				//InterestPoints.push_back(p);
+#ifdef DrawKeypoints
 				// Set the color of this pixel to red to indicate that it is an interest pixel
 				img.at<cv::Vec3b>(y, x) = cv::Vec3b(0, 0, 255);
+#endif
 				continue;
 			}
 		}
@@ -417,7 +425,7 @@ int main()
 #endif
 
 #ifdef optimised
-	std::cout << "Optimised Version";
+	std::cout << "Optimised Homemade Version";
 	std::cout << std::endl;
 #else
 	std::cout << "Not Optimised Version";
@@ -425,16 +433,41 @@ int main()
 #endif
 
 	auto finish = std::chrono::high_resolution_clock::now();
-	std::chrono::duration<double> elapsed = finish - start;
-	std::cout << "Elapsed time: " << elapsed.count() << " s\n";
-
+	std::chrono::duration<double> elapsed = (finish - start) * 1000;
+	std::cout << "Elapsed time: " << elapsed.count() << " ms\n";
 	std::cout << "Done";
 	std::cout << std::endl;
 	std::cout << "We found " << Ips.size() << " interest points";
 	std::cout << std::endl;
-
+	std::cout << std::endl;
 	imshow("image", img);
+	imwrite("HomeMadeKeypoints.jpg", img);
+	
+	cv::Mat src = cv::imread("city.jpg", cv::ImreadModes::IMREAD_GRAYSCALE);
 
+	auto start2 = std::chrono::high_resolution_clock::now();
+
+	std::vector<cv::KeyPoint> keypointsD;
+	cv::Ptr<cv::FastFeatureDetector> detector = cv::FastFeatureDetector::create(12);
+
+	detector->detect(src, keypointsD, cv::Mat());
+
+	auto finish2 = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> elapsed2 = (finish2 - start2) * 1000;
+
+	std::cout << "CV FAST Version";
+	std::cout << std::endl;
+
+	std::cout << "Elapsed time: " << elapsed2.count() << " ms\n";
+
+	std::cout << "Done";
+	std::cout << std::endl;
+	std::cout << "We found " << keypointsD.size() << " interest points";
+	std::cout << std::endl;
+
+	drawKeypoints(src, keypointsD, src);
+	imshow("keypoints", src);
+	imwrite("FASTKeypoints.jpg", src);
 	cv::waitKey(0);
 	return 0;
 }
